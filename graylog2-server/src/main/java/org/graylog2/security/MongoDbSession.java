@@ -150,8 +150,9 @@ public class MongoDbSession extends PersistedImpl {
     }
 
     public boolean isExpired() {
-        final Object o = fields.get("expired");
-        return o == null ? false : (Boolean) o;
+        // Using Boolean.TRUE.equals() avoids ClassCastException when the stored value is not a Boolean
+        // and gracefully handles null values by returning false.
+        return Boolean.TRUE.equals(fields.get("expired"));
     }
 
     public void setExpired(boolean expired) {
