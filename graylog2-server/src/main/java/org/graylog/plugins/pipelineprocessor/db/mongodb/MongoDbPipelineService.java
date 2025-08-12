@@ -28,6 +28,7 @@ import org.graylog.plugins.pipelineprocessor.db.PipelineDao;
 import org.graylog.plugins.pipelineprocessor.db.PipelineService;
 import org.graylog.plugins.pipelineprocessor.db.PipelineStreamConnectionsService;
 import org.graylog.plugins.pipelineprocessor.events.PipelinesChangedEvent;
+import org.graylog.plugins.pipelineprocessor.rest.PipelineConnections;
 import org.graylog2.database.MongoCollection;
 import org.graylog2.database.MongoCollections;
 import org.graylog2.database.NotFoundException;
@@ -35,10 +36,12 @@ import org.graylog2.database.entities.EntityScopeService;
 import org.graylog2.database.utils.MongoUtils;
 import org.graylog2.database.utils.ScopedEntityMongoUtils;
 import org.graylog2.events.ClusterEventBus;
+import org.graylog2.plugin.streams.Stream;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -143,6 +146,32 @@ public class MongoDbPipelineService implements PipelineService {
 
     @Override
     public void delete(String id) {
+        final PipelineDao pipeline;
+        try {
+            pipeline = load(id);
+        } catch (NotFoundException e) {
+            // If the pipeline doesn't exist, there's nothing to do.
+            return;
+        }
+
+        final boolean isDefaultRoutingPipeline = "Default Routing".equals(pipeline.title());
+
+        final Set<PipelineConnections> connections = pipelineStreamConnectionsService.loadByPipelineId(id);
+        for (PipelineConnections connection : connections) {
+            if (isDefaultRoutingPipeline && connection.streamId().equals(Stream.DEFAULT_STREAM_ID)) {
+                continue;
+            }
+
+            final Set<String> pipelineIds = new HashSet<>(connection.pipelineIds());
+            pipelineIds.remove(id);
+
+            if (pipelineIds.isEmpty()) {
+                pipelineStreamConnectionsService.delete(connection.streamId());
+            } else {
+                pipelineStreamConnectionsService.save(connection.toBuilder().pipelineIds(pipelineIds).build());
+            }
+        }
+
         scopedEntityMongoUtils.deleteById(id);
         clusterBus.post(PipelinesChangedEvent.deletedPipelineId(id));
     }

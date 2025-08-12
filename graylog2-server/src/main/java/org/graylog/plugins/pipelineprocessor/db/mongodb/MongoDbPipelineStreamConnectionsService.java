@@ -60,16 +60,7 @@ public class MongoDbPipelineStreamConnectionsService implements PipelineStreamCo
 
     @Override
     public PipelineConnections save(PipelineConnections connections) {
-        PipelineConnections existingConnections = collection.find(eq("stream_id", connections.streamId()))
-                .first();
-        if (existingConnections == null) {
-            existingConnections = PipelineConnections.create(null, connections.streamId(), Collections.emptySet());
-        }
-
-        final PipelineConnections toSave = existingConnections.toBuilder()
-                .pipelineIds(connections.pipelineIds()).build();
-
-        final PipelineConnections savedConnections = mongoUtils.save(toSave);
+        final PipelineConnections savedConnections = mongoUtils.save(connections);
         clusterBus.post(PipelineConnectionsChangedEvent.create(savedConnections.streamId(), savedConnections.pipelineIds()));
 
         return savedConnections;

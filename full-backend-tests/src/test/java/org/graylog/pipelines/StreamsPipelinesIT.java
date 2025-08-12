@@ -116,6 +116,41 @@ public class StreamsPipelinesIT {
         assertThat(result.getList("")).containsExactlyInAnyOrder(pipeline1, pipeline2);
     }
 
+    @ContainerMatrixTest
+    void deletingPipelineRemovesConnections() {
+        final var defaultIndexSet = api.indices().defaultIndexSetId();
+        final var streamId = api.streams().createStream("Stream for pipeline connection test", defaultIndexSet);
+        final var pipeline1Id = api.pipelines().create("Pipeline 1 for connection test", Set.of(streamId));
+        final var pipeline2Id = api.pipelines().create("Pipeline 2 for connection test", Set.of(streamId));
+
+        // Check that both pipelines are connected to the stream
+        var result = api.get("/streams/" + streamId + "/pipelines", 200)
+                .extract().body().jsonPath();
+        assertThat(result.getList("")).hasSize(2);
+
+        // Delete the first pipeline
+        api.pipelines().delete(pipeline1Id);
+
+        // Check that only the second pipeline is connected to the stream
+        result = api.get("/streams/" + streamId + "/pipelines", 200)
+                .extract().body().jsonPath();
+        assertThat(result.getList("")).hasSize(1);
+        @SuppressWarnings("unchecked")
+        Map<String, String> pipeline = (Map<String, String>) result.getList("").get(0);
+        assertThat(pipeline.get("id")).isEqualTo(pipeline2Id);
+
+        // Delete the second pipeline
+        api.pipelines().delete(pipeline2Id);
+
+        // Check that no pipelines are connected to the stream
+        result = api.get("/streams/" + streamId + "/pipelines", 200)
+                .extract().body().jsonPath();
+        assertThat(result.getList("")).isEmpty();
+
+        // cleanup
+        api.streams().deleteStream(streamId);
+    }
+
     private Map<String, String> pipelineSummary(String id, String title) {
         return Map.of("id", id, "title", title);
     }
