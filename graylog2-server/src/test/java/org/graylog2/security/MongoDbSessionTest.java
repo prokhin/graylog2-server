@@ -64,4 +64,24 @@ class MongoDbSessionTest {
                 List.of("a-user-id", "secondary-principal")));
         assertThat(session.getUserIdAttribute()).contains("a-user-id");
     }
+
+    @Test
+    void isExpiredDefaultsToFalse() {
+        final MongoDbSession session = new MongoDbSession(fields);
+        assertThat(session.isExpired()).isFalse();
+    }
+
+    @Test
+    void isExpiredReturnsTrueWhenFlagIsSet() {
+        fields.put("expired", true);
+        final MongoDbSession session = new MongoDbSession(fields);
+        assertThat(session.isExpired()).isTrue();
+    }
+
+    @Test
+    void isExpiredHandlesNonBooleanValues() {
+        fields.put("expired", "true");
+        final MongoDbSession session = new MongoDbSession(fields);
+        assertThat(session.isExpired()).isFalse();
+    }
 }
